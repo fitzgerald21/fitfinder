@@ -463,3 +463,80 @@ dialog::backdrop { background: rgb(0 0 0 / 40%); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Photos ---------- */
+.item { overflow: hidden; }
+.item-img {
+  position: relative;
+  margin: -16px -16px 14px;
+  aspect-ratio: 1;
+  background: var(--chip);
+}
+.item-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.item-img.pending,
+.product.skeleton,
+.products.pending .product-img {
+  background: linear-gradient(90deg, var(--chip) 0%, var(--surface) 50%, var(--chip) 100%) 0 0 / 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.badge-ai {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.products {
+  display: flex;
+  gap: 10px;
+  margin: 0 -16px;
+  padding: 0 16px 4px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding: 16px;
+  scrollbar-width: none;
+}
+.products::-webkit-scrollbar { display: none; }
+.products .sub { margin: 0; font-size: 14px; }
+.product {
+  flex: 0 0 136px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.product.skeleton { height: 200px; border-radius: 12px; }
+.product-img {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.product-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.product-title {
+  font-size: 13px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.product-meta { font-size: 12px; color: var(--muted); }
+.product-meta b { color: var(--ink); font-weight: 600; }
+
+/* ---------- Settings extras ---------- */
+.settings-sub { font: 600 17px/1.3 var(--serif); margin: 24px 0 12px; padding-top: 16px; border-top: 1px solid var(--line); }
+.field > span em { font-style: normal; font-weight: 400; color: var(--muted); }
+.toggle { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 18px; cursor: pointer; }
+.toggle input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.toggle span { display: grid; gap: 2px; }
+.toggle small { color: var(--muted); font-size: 13px; }
+.question h1 + .cards, .question h1 + .chips { margin-top: 20px; }

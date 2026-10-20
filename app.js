@@ -1,4 +1,5 @@
 import { findStore, storeLink, googleShoppingLink, storeListForPrompt } from './stores.js';
+import { DEFAULT_IMAGE_MODEL, cachedImage, cachedProducts, imageFailed, productsFailed, generateImage, searchProducts } from './photos.js';
 
 const DEFAULT_MODEL = 'deepseek-ai/DeepSeek-V4.1-Flash-1017';
 const API_URL = 'https://api.deepinfra.com/v1/openai/chat/completions';
@@ -129,7 +130,7 @@ function save(key, val) {
 
 const newSession = () => ({ view: 'welcome', step: 0, answers: {}, followups: null, followupsFor: null, followupAnswers: {}, results: null, resultsFor: null, messages: null });
 
-let settings = { apiKey: '', model: DEFAULT_MODEL, ...load(KEYS.settings, {}) };
+let settings = { apiKey: '', model: DEFAULT_MODEL, serperKey: '', aiImages: true, imageModel: DEFAULT_IMAGE_MODEL, ...load(KEYS.settings, {}) };
 let session = { ...newSession(), ...load(KEYS.session, {}) };
 let saved = load(KEYS.saved, []);
 const ui = { loading: null, error: null, controller: null };
@@ -208,7 +209,7 @@ function profileText() {
       if (v && (!Array.isArray(v) || v.length)) lines.push(`- ${q.label}: ${[].concat(v).join(', ')}`);
     }
   }
-  let text = `Shopper profile:\n${lines.join('\n')}`;
+  let text = `Shopper profile:\n${lines.join('\n') || '- (skipped every question)'}`;
   const fa = session.followupAnswers;
   const followupLines = (session.followups || [])
     .filter(f => fa[f.id]?.length)
@@ -219,7 +220,7 @@ function profileText() {
 }
 
 const FOLLOWUP_PROMPT = `You are a sharp, friendly personal stylist. A shopper has answered a short questionnaire.
-Ask exactly 3 short follow-up multiple-choice questions that would most improve your clothing recommendations for THIS shopper. Cover things the questionnaire didn't: specific silhouettes or details for the items they want, fabrics, season/climate, how dressy the event really is, what they want to feel like, problem areas they want to work around, etc. Never repeat something already answered.
+Ask exactly 3 short follow-up multiple-choice questions that would most improve your clothing recommendations for THIS shopper. Cover things the questionnaire didn't: specific silhouettes or details for the items they want, fabrics, season/climate, how dressy the event really is, what they want to feel like, problem areas they want to work around, etc. Never repeat something already answered. The shopper may have skipped questions; if basics are missing (who it's for, what they want, the occasion), ask about the most important of those first.
 Each question: under 12 words, 3–5 concise options (1–5 words each). Set "multi" true if picking several makes sense.
 Return only JSON: {"questions":[{"question":"...","multi":false,"options":["...","..."]}]}`;
 
@@ -232,6 +233,7 @@ Rules:
 - Whole outfit: 5–7 pieces that work together head to toe (include shoes; add a layer, bag or accessory if it suits the occasion).
 - Specific categories: 2–3 distinct options per category (e.g. a safe pick and a more interesting one). Max 10 items total.
 - Respect gender, age, occasion, budget, fit, colors, style vibes, sizes, and anything to avoid.
+- The shopper may have skipped questions. Fill gaps with sensible defaults: gender-neutral or clearly labeled options if gender is missing, everyday wear if the occasion is missing, mid-range prices if the budget is missing, and a versatile 5–7 piece mix if they didn't say what they want.
 - Match their trend appetite: "timeless" means enduring staples; "fashion-forward" means current-season trends and statement pieces (name the trend).
 - "name": a specific, descriptive product type someone would search for (e.g. "Wide-leg pleated wool trousers"), not an exact branded product name. You may mention a brand known for the piece in "description".
 - "search_query": 3–7 words as typed into a store search box. Include "women's"/"men's" when relevant plus key color and style words. No brand names unless the store sells that brand.
@@ -428,8 +430,7 @@ function selectedValues(q) {
 }
 
 function isAnswered(q) {
-  if (q.optional) return true;
-  return selectedValues(q).length > 0;
+  return q.type === 'form' || selectedValues(q).length > 0;
 }
 
 function renderQuestion() {
@@ -468,8 +469,7 @@ function renderQuestion() {
 
   const last = session.step === QUESTIONS.length - 1;
   const nextLabel = last ? 'Find my clothes' : 'Continue';
-  const skip = q.optional && !sel.length && q.type !== 'form';
-  setActions(`<button class="btn primary block" data-act="next" ${isAnswered(q) ? '' : 'disabled'}>${skip ? 'Skip' : nextLabel}</button>`);
+  setActions(`<button class="btn ghost" data-act="skip">Skip</button><button class="btn primary" data-act="next" ${isAnswered(q) ? '' : 'disabled'}>${nextLabel}</button>`);
 
   if (q.type === 'form') {
     $view.querySelectorAll('[data-k]').forEach(el =>
@@ -589,12 +589,83 @@ function toggleFollowup(fid, v) {
 
 const savedKey = item => `${item.name}|${item.query}`.toLowerCase();
 
+function imagePrompt(item) {
+  const g = session.answers.gender;
+  const who = g === "Women's" ? "women's " : g === "Men's" ? "men's " : '';
+  const color = item.colors[0] ? `${item.colors[0]} ` : '';
+  return `Professional e-commerce product photo of a ${color}${who}${item.name.toLowerCase()}. ${item.description} The item shown alone and centered, ghost-mannequin or neat flat-lay style, on a plain warm off-white studio background, soft even lighting, crisp fabric texture, high-end catalog photography. No person, no face, no text, no logos, no watermark.`;
+}
+
+// Real products when a Serper key is set (or were saved earlier), otherwise an AI preview.
+function mediaFor(item) {
+  const products = item.products || cachedProducts(item.query);
+  if (products?.length || (settings.serperKey && !productsFailed(item.query))) return { kind: 'products', products };
+  const image = item.image || cachedImage(savedKey(item));
+  if (image || (settings.aiImages && settings.apiKey && !imageFailed(savedKey(item)))) return { kind: 'image', image };
+  return { kind: 'none' };
+}
+
+const imageHtml = src => `<img src="${esc(src)}" alt="" loading="lazy"><span class="badge-ai">AI preview</span>`;
+const productsHtml = list =>
+  list.length
+    ? list
+        .map(
+          p => `<a class="product" href="${esc(p.link)}" target="_blank" rel="noopener noreferrer">
+            <span class="product-img"><img src="${esc(p.image)}" alt="" loading="lazy" referrerpolicy="no-referrer"></span>
+            <span class="product-title">${esc(p.title)}</span>
+            <span class="product-meta"><b>${esc(p.price)}</b> ${esc(p.source)}</span>
+          </a>`
+        )
+        .join('')
+    : `<p class="sub">No matching products found. Try the store links below.</p>`;
+
+function hydrateMedia(root) {
+  root.querySelectorAll('[data-img]:not([data-done])').forEach(el => {
+    el.dataset.done = '1';
+    const key = el.dataset.img;
+    const item = session.results?.items.find(i => savedKey(i) === key) || saved.find(i => i.key === key);
+    if (!item) return;
+    generateImage(key, imagePrompt(item), { apiKey: settings.apiKey.trim(), model: settings.imageModel })
+      .then(src => document.querySelectorAll(`[data-img="${CSS.escape(key)}"]`).forEach(m => {
+        m.classList.remove('pending');
+        m.innerHTML = imageHtml(src);
+      }))
+      .catch(() => document.querySelectorAll(`[data-img="${CSS.escape(key)}"]`).forEach(m => m.remove()));
+  });
+  root.querySelectorAll('[data-products]:not([data-done])').forEach(el => {
+    el.dataset.done = '1';
+    const query = el.dataset.products;
+    searchProducts(query, settings.serperKey.trim())
+      .then(list => document.querySelectorAll(`[data-products="${CSS.escape(query)}"]`).forEach(m => {
+        m.classList.remove('pending');
+        m.innerHTML = productsHtml(list);
+      }))
+      .catch(() => document.querySelectorAll(`[data-products="${CSS.escape(query)}"]`).forEach(m => m.closest('.products-wrap')?.remove()));
+  });
+}
+
 function itemCard(item, { savedView = false } = {}) {
   const key = savedKey(item);
   const isSaved = saved.some(s => s.key === key);
   const links = item.links || itemLinks(item);
+  const media = mediaFor(item);
+  const hero =
+    media.kind === 'image'
+      ? media.image
+        ? `<div class="item-img">${imageHtml(media.image)}</div>`
+        : `<div class="item-img pending" data-img="${esc(key)}"></div>`
+      : '';
+  const productRow =
+    media.kind === 'products'
+      ? `<div class="products-wrap"><p class="shop-label">Real products</p>${
+          media.products
+            ? `<div class="products">${productsHtml(media.products)}</div>`
+            : `<div class="products pending" data-products="${esc(item.query)}">${'<span class="product skeleton"></span>'.repeat(3)}</div>`
+        }</div>`
+      : '';
   return `
     <article class="item">
+      ${hero}
       <header>
         <span class="cat">${esc(item.category)}</span>
         ${item.price ? `<span class="price">${esc(item.price)}</span>` : ''}
@@ -604,7 +675,8 @@ function itemCard(item, { savedView = false } = {}) {
       ${item.description ? `<p class="desc">${esc(item.description)}</p>` : ''}
       ${item.why ? `<p class="why">${esc(item.why)}</p>` : ''}
       ${item.colors?.length ? `<div class="colors">${item.colors.map(c => `<span>${esc(c)}</span>`).join('')}</div>` : ''}
-      <p class="shop-label">Shop it</p>
+      ${productRow}
+      <p class="shop-label">${media.kind === 'products' ? 'Search stores' : 'Shop it'}</p>
       <div class="links">${links
         .map(l => `<a class="${l.google ? 'google' : ''}" href="${esc(l.href)}" target="_blank" rel="noopener noreferrer">${esc(l.name)}${ARROW_SVG}</a>`)
         .join('')}</div>
@@ -640,9 +712,10 @@ function renderResults() {
           <button class="btn primary" type="submit">Update</button>
         </form>
       </div>
-      <p class="fineprint">Links open each store's search for the item, since exact products and stock change daily.</p>
+      <p class="fineprint">${settings.serperKey ? 'Real products come from Google Shopping. ' : settings.aiImages ? 'Photos are AI previews of the style, not the exact product. ' : ''}Store links open each shop's search for the item, since stock changes daily.</p>
     </section>`;
   setActions('');
+  hydrateMedia($view);
   $('#refine-form').addEventListener('submit', e => {
     e.preventDefault();
     refine($('#refine-input').value);
@@ -654,6 +727,7 @@ function renderSaved() {
     ? saved.map(s => itemCard(s, { savedView: true })).join('')
     : `<div class="empty"><p>Nothing saved yet.</p><p class="sub">Tap the heart on any recommendation to keep it here.</p></div>`;
   $('#saved-body').innerHTML = body;
+  hydrateMedia($('#saved-body'));
 }
 
 // ---------- Saved items ----------
@@ -666,7 +740,9 @@ function toggleSave(key) {
   } else {
     const item = session.results?.items.find(i => savedKey(i) === key);
     if (!item) return;
-    saved.unshift({ ...item, key, links: itemLinks(item), savedAt: Date.now() });
+    const image = cachedImage(key);
+    const products = cachedProducts(item.query);
+    saved.unshift({ ...item, key, links: itemLinks(item), ...(image && { image }), ...(products && { products: products.slice(0, 4) }), savedAt: Date.now() });
     toast('Saved');
   }
   save(KEYS.saved, saved);
@@ -682,12 +758,21 @@ function openSettings(message) {
   $('#settings-msg').hidden = !message;
   $('#api-key').value = settings.apiKey;
   $('#model').value = settings.model;
+  $('#ai-images').checked = settings.aiImages;
+  $('#serper-key').value = settings.serperKey;
+  $('#image-model').value = settings.imageModel;
   $('#test-result').textContent = '';
   $('#settings-dialog').showModal();
 }
 
 function saveSettings() {
-  settings = { apiKey: $('#api-key').value.trim(), model: $('#model').value.trim() || DEFAULT_MODEL };
+  settings = {
+    apiKey: $('#api-key').value.trim(),
+    model: $('#model').value.trim() || DEFAULT_MODEL,
+    aiImages: $('#ai-images').checked,
+    serperKey: $('#serper-key').value.trim(),
+    imageModel: $('#image-model').value.trim() || DEFAULT_IMAGE_MODEL,
+  };
   save(KEYS.settings, settings);
 }
 
@@ -744,6 +829,9 @@ document.addEventListener('click', e => {
       return go('q', 0);
     case 'next':
       return advance();
+    case 'skip':
+      delete session.answers[QUESTIONS[session.step].id];
+      return advance();
     case 'cancel': {
       const wasRefine = ui.loading === 'refine';
       cancelLoading();
@@ -789,11 +877,11 @@ $('#settings-form').addEventListener('submit', () => {
 });
 $('#test-key').addEventListener('click', testConnection);
 $('#reset-model').addEventListener('click', () => ($('#model').value = DEFAULT_MODEL));
-$('#toggle-key').addEventListener('click', e => {
-  const input = $('#api-key');
+document.querySelectorAll('[data-reveal]').forEach(btn => btn.addEventListener('click', e => {
+  const input = $(`#${btn.dataset.reveal}`);
   input.type = input.type === 'password' ? 'text' : 'password';
   e.currentTarget.textContent = input.type === 'password' ? 'Show' : 'Hide';
-});
+}));
 $('#clear-data').addEventListener('click', () => {
   if (!confirm('Clear your answers, results and saved items? Your API key stays.')) return;
   session = newSession();

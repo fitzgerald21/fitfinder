@@ -1,6 +1,6 @@
 # Fitfinder
 
-A mobile-first web app that helps you figure out where to buy clothes you'll like. Answer a few questions (who you're shopping for, age, occasion, what pieces you want, trendiness, style vibes, fit, colors, budget), answer 3 AI-tailored follow-ups, and get a list of specific pieces with links to shops that carry them.
+A mobile-first web app that helps you figure out where to buy clothes you'll like. Answer a few questions, skipping any you like (who you're shopping for, age, occasion, what pieces you want, trendiness, style vibes, fit, colors, budget), answer 3 AI-tailored follow-ups, and get a list of specific pieces with links to shops that carry them.
 
 ## Setup
 
@@ -9,6 +9,13 @@ A mobile-first web app that helps you figure out where to buy clothes you'll lik
 3. Optional: add it to your home screen (Share → Add to Home Screen) so it opens like an app.
 
 The default model is `deepseek-ai/DeepSeek-V4.1-Flash-1017`. You can change it in Settings to any chat model on DeepInfra.
+
+## Photos
+
+- **AI previews (default):** each item gets a generated product photo from a DeepInfra image model (`black-forest-labs/FLUX-2-klein-4b` by default), using the same key. Turn off or change the model in Settings.
+- **Real products (optional):** add a free [Serper.dev](https://serper.dev) key in Settings and each item shows real Google Shopping products with photos, prices and direct links, instead of AI previews.
+
+Photos are cached on the device so reloading doesn't regenerate them.
 
 ## How links work
 
@@ -20,6 +27,7 @@ To add or change a store, edit `stores.js`.
 
 - `index.html`, `styles.css`, `app.js`: the app (no build step)
 - `stores.js`: store catalog and link building
+- `photos.js`: AI preview images and real product search
 - `sw.js`, `manifest.webmanifest`, `icons/`: installable app and offline shell
 
 ## Run locally

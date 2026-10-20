@@ -1,7 +1,7 @@
 // Network-first for the app's own files so updates show up right away,
 // with the cache as an offline fallback. API calls and other origins pass through.
-const CACHE = 'fitfinder-v1';
-const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'stores.js', 'manifest.webmanifest', 'icons/icon.svg'];
+const CACHE = 'fitfinder-v2';
+const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'stores.js', 'photos.js', 'manifest.webmanifest', 'icons/icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

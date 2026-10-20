@@ -56,7 +56,7 @@
         <span>DeepInfra API key</span>
         <div class="input-row">
           <input id="api-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your key">
-          <button id="toggle-key" type="button" class="btn ghost small">Show</button>
+          <button type="button" class="btn ghost small" data-reveal="api-key">Show</button>
         </div>
         <small>Get one at <a href="https://deepinfra.com/dash/api_keys" target="_blank" rel="noopener">deepinfra.com</a>. It's stored only on this device and sent only to DeepInfra.</small>
       </label>
@@ -67,6 +67,24 @@
           <button id="reset-model" type="button" class="btn ghost small">Default</button>
         </div>
         <small>Any chat model on DeepInfra, e.g. deepseek-ai/DeepSeek-V4.1-Flash-1017.</small>
+      </label>
+      <h3 class="settings-sub">Photos</h3>
+      <label class="toggle">
+        <input id="ai-images" type="checkbox">
+        <span><b>AI preview images</b><small>A generated photo of each item, made with your DeepInfra key (well under a cent each).</small></span>
+      </label>
+      <label class="field">
+        <span>Serper API key <em>optional, for real products</em></span>
+        <div class="input-row">
+          <input id="serper-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your key">
+          <button type="button" class="btn ghost small" data-reveal="serper-key">Show</button>
+        </div>
+        <small>Shows real products with photos, prices and direct links from Google Shopping, instead of AI previews. Free key with 2,500 searches at <a href="https://serper.dev" target="_blank" rel="noopener">serper.dev</a>.</small>
+      </label>
+      <label class="field">
+        <span>Image model</span>
+        <input id="image-model" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <small>Any DeepInfra text-to-image model, e.g. black-forest-labs/FLUX-1-schnell for the cheapest option.</small>
       </label>
       <div class="test-row">
         <button id="test-key" type="button" class="btn ghost">Test connection</button>
